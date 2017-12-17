@@ -77,3 +77,37 @@ class Discriminator(chainer.Chain):
         h = F.leaky_relu(add_noise(self.bn3_0(self.c3_0(h))))
         h = self.l4(h)
         return h
+
+
+class Encoder(chainer.Chain):
+
+    def __init__(self, wscale=0.02):
+        w = chainer.initializers.Normal(wscale)
+        super(Encoder, self).__init__()
+        with self.init_scope():
+            self.c0_0 = L.Convolution2D(3, 64, 3, stride=2, pad=1, initialW=w)
+            self.c0_1 = L.Convolution2D(64, 128, 4, stride=2, pad=1, initialW=w)
+            self.c1_0 = L.Convolution2D(128, 128, 3, stride=1, pad=1, initialW=w)
+            self.c1_1 = L.Convolution2D(128, 256, 4, stride=2, pad=1, initialW=w)
+            self.c2_0 = L.Convolution2D(256, 256, 3, stride=1, pad=1, initialW=w)
+            self.c2_1 = L.Convolution2D(256, 512, 4, stride=2, pad=1, initialW=w)
+            self.c3_0 = L.Convolution2D(512, 512, 3, stride=1, pad=1, initialW=w)
+            self.l4 = L.Linear(4 * 4 * 512, 100, initialW=w)
+            self.bn0_1 = L.BatchNormalization(128, use_gamma=False)
+            self.bn1_0 = L.BatchNormalization(128, use_gamma=False)
+            self.bn1_1 = L.BatchNormalization(256, use_gamma=False)
+            self.bn2_0 = L.BatchNormalization(256, use_gamma=False)
+            self.bn2_1 = L.BatchNormalization(512, use_gamma=False)
+            self.bn3_0 = L.BatchNormalization(512, use_gamma=False)
+
+    def __call__(self, x):
+        h = add_noise(x)
+        h = F.leaky_relu(add_noise(self.c0_0(h)))
+        h = F.leaky_relu(add_noise(self.bn0_1(self.c0_1(h))))
+        h = F.leaky_relu(add_noise(self.bn1_0(self.c1_0(h))))
+        h = F.leaky_relu(add_noise(self.bn1_1(self.c1_1(h))))
+        h = F.leaky_relu(add_noise(self.bn2_0(self.c2_0(h))))
+        h = F.leaky_relu(add_noise(self.bn2_1(self.c2_1(h))))
+        h = F.leaky_relu(add_noise(self.bn3_0(self.c3_0(h))))
+        h = self.l4(h)
+        return h

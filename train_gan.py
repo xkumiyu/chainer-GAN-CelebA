@@ -1,10 +1,18 @@
 import argparse
 import os
 
+
+import matplotlib
+try:
+    matplotlib.use('Agg')
+except Exception:
+    raise
+
 import chainer
 from chainer import training
 from chainer.training import extensions
 
+from dataset import CelebADataset
 from net import Discriminator
 from net import Generator
 from updater import DCGANUpdater
@@ -12,7 +20,7 @@ from visualize import out_generated_image
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Chainer example: DCGAN')
+    parser = argparse.ArgumentParser(description='Train GAN')
     parser.add_argument('--batchsize', '-b', type=int, default=64,
                         help='Number of images in each mini-batch')
     parser.add_argument('--epoch', '-e', type=int, default=10,
@@ -20,7 +28,7 @@ def main():
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--dataset', '-i', default='data/celebA/',
-                        help='Directory of image files.  Default is cifar-10.')
+                        help='Directory of image files.')
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
@@ -34,7 +42,7 @@ def main():
     args = parser.parse_args()
 
     print('GPU: {}'.format(args.gpu))
-    print('# Minibatch-size: {}'.format(args.batchsize))
+    print('# batchsize: {}'.format(args.batchsize))
     print('# epoch: {}'.format(args.epoch))
     print('')
 
@@ -60,17 +68,7 @@ def main():
     all_files = os.listdir(args.dataset)
     image_files = [f for f in all_files if ('png' in f or 'jpg' in f)]
     print('{} contains {} image files'.format(args.dataset, len(image_files)))
-    train = chainer.datasets.ImageDataset(paths=image_files, root=args.dataset)
-
-    def center_crop(image, crop_size=(108, 108)):
-        _, h, w = image.shape
-        top = (h - crop_size[0]) // 2
-        left = (w - crop_size[1]) // 2
-        bottom = top + crop_size[0]
-        right = left + crop_size[1]
-        image = image[:, top:bottom, left:right]
-        return image
-    train = chainer.datasets.TransformDataset(train, center_crop)
+    train = CelebADataset(paths=image_files, root=args.dataset)
 
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
 
@@ -86,13 +84,13 @@ def main():
     snapshot_interval = (args.snapshot_interval, 'iteration')
     display_interval = (args.display_interval, 'iteration')
     trainer.extend(
-        extensions.snapshot(filename='snapshot_iter_{.updater.iteration}.npz'),
+        extensions.snapshot(filename='snapshot_gan_iter_{.updater.iteration}.npz'),
         trigger=snapshot_interval)
     trainer.extend(extensions.snapshot_object(
         gen, 'gen_iter_{.updater.iteration}.npz'), trigger=snapshot_interval)
     trainer.extend(extensions.snapshot_object(
         dis, 'dis_iter_{.updater.iteration}.npz'), trigger=snapshot_interval)
-    trainer.extend(extensions.LogReport(trigger=display_interval))
+    trainer.extend(extensions.LogReport(trigger=display_interval, log_name='train_gan.log'))
     trainer.extend(extensions.PrintReport([
         'epoch', 'iteration', 'gen/loss', 'dis/loss',
     ]), trigger=display_interval)
