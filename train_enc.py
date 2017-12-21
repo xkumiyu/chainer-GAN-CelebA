@@ -32,11 +32,12 @@ def main():
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
                         help='Resume the training from snapshot')
-    parser.add_argument('--snapshot_interval', type=int, default=1000,
+    parser.add_argument('--snapshot_interval', type=int, default=10000,
                         help='Interval of snapshot')
-    parser.add_argument('--display_interval', type=int, default=100,
+    parser.add_argument('--display_interval', type=int, default=1000,
                         help='Interval of displaying log to console')
-    parser.add_argument('--gen', default='gen.npz', required=True)
+    parser.add_argument('--gen', default='gen.npz')
+    parser.add_argument('--enc', default=None)
     args = parser.parse_args()
 
     print('GPU: {}'.format(args.gpu))
@@ -48,6 +49,8 @@ def main():
     gen = Generator()
     npz.load_npz(args.gen, gen)
     enc = Encoder()
+    if args.enc is not None:
+        npz.load_npz(args.enc, enc)
 
     if args.gpu >= 0:
         chainer.cuda.get_device_from_id(args.gpu).use()
@@ -55,7 +58,7 @@ def main():
         enc.to_gpu()
 
     # Setup an optimizer
-    def make_optimizer(model, alpha=0.0002, beta1=0.5):
+    def make_optimizer(model, alpha=0.0005, beta1=0.9):
         optimizer = chainer.optimizers.Adam(alpha=alpha, beta1=beta1)
         optimizer.setup(model)
         optimizer.add_hook(chainer.optimizer.WeightDecay(0.0001), 'hook_dec')
@@ -85,12 +88,16 @@ def main():
     trainer.extend(
         extensions.snapshot(filename='snapshot_enc_iter_{.updater.iteration}.npz'),
         trigger=snapshot_interval)
+    trainer.extend(extensions.ExponentialShift(
+        'alpha', 0.5, optimizer=opt_enc), trigger=(10, 'epoch'))
     trainer.extend(extensions.snapshot_object(
         enc, 'enc_iter_{.updater.iteration}.npz'), trigger=snapshot_interval)
     trainer.extend(extensions.LogReport(trigger=display_interval, log_name='train_enc.log'))
     trainer.extend(extensions.PrintReport([
         'epoch', 'iteration', 'enc/loss',
     ]), trigger=display_interval)
+    trainer.extend(extensions.PlotReport(
+        ['enc/loss'], trigger=display_interval, file_name='enc-loss.png'))
     trainer.extend(extensions.ProgressBar(update_interval=10))
 
     if args.resume:

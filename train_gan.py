@@ -23,7 +23,7 @@ def main():
     parser = argparse.ArgumentParser(description='Train GAN')
     parser.add_argument('--batchsize', '-b', type=int, default=64,
                         help='Number of images in each mini-batch')
-    parser.add_argument('--epoch', '-e', type=int, default=10,
+    parser.add_argument('--epoch', '-e', type=int, default=100,
                         help='Number of sweeps over the dataset to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
@@ -35,10 +35,11 @@ def main():
                         help='Resume the training from snapshot')
     parser.add_argument('--seed', type=int, default=0,
                         help='Random seed of z at visualization stage')
-    parser.add_argument('--snapshot_interval', type=int, default=1000,
+    parser.add_argument('--snapshot_interval', type=int, default=10000,
                         help='Interval of snapshot')
-    parser.add_argument('--display_interval', type=int, default=100,
+    parser.add_argument('--display_interval', type=int, default=1000,
                         help='Interval of displaying log to console')
+    parser.add_argument('--unrolling_steps', type=int, default=0)
     args = parser.parse_args()
 
     print('GPU: {}'.format(args.gpu))
@@ -48,7 +49,7 @@ def main():
 
     # Set up a neural network to train
     gen = Generator()
-    dis = Discriminator()
+    dis = Discriminator(unrolling_steps=args.unrolling_steps)
 
     if args.gpu >= 0:
         chainer.cuda.get_device_from_id(args.gpu).use()
@@ -94,6 +95,8 @@ def main():
     trainer.extend(extensions.PrintReport([
         'epoch', 'iteration', 'gen/loss', 'dis/loss',
     ]), trigger=display_interval)
+    trainer.extend(extensions.PlotReport(
+        ['gen/loss', 'dis/loss'], trigger=display_interval, file_name='gan-loss.png'))
     trainer.extend(extensions.ProgressBar(update_interval=10))
     trainer.extend(
         out_generated_image(

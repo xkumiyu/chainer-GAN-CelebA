@@ -2,7 +2,7 @@ import chainer
 
 
 class CelebADataset(chainer.dataset.DatasetMixin):
-    def __init__(self, paths, root):
+    def __init__(self, paths, root='.'):
         self.base = chainer.datasets.ImageDataset(paths, root)
         self.crop_size = (108, 108)
 

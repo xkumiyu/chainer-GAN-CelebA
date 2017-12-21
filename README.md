@@ -1,5 +1,12 @@
 # GAN CelebA
 
+# Image Generate
+
+``` sh
+python add_attr.py
+```
+
+# Model Training
 
 ``` sh
 python download.py

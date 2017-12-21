@@ -37,18 +37,19 @@ class Generator(chainer.Chain):
             .astype(numpy.float32)
 
     def __call__(self, z):
-        h = F.reshape(F.relu(self.bn0(self.l0(z))), (len(z), 512, 4, 4))
-        h = F.relu(self.bn1(self.dc1(h)))
-        h = F.relu(self.bn2(self.dc2(h)))
-        h = F.relu(self.bn3(self.dc3(h)))
+        h = F.reshape(F.leaky_relu(self.bn0(self.l0(z))), (len(z), 512, 4, 4))
+        h = F.leaky_relu(self.bn1(self.dc1(h)))
+        h = F.leaky_relu(self.bn2(self.dc2(h)))
+        h = F.leaky_relu(self.bn3(self.dc3(h)))
         x = F.sigmoid(self.dc4(h))
         return x
 
 
 class Discriminator(chainer.Chain):
 
-    def __init__(self, wscale=0.02):
+    def __init__(self, wscale=0.02, unrolling_steps=5):
         w = chainer.initializers.Normal(wscale)
+        self.unrolling_steps = unrolling_steps
         super(Discriminator, self).__init__()
         with self.init_scope():
             self.c0_0 = L.Convolution2D(3, 64, 3, stride=2, pad=1, initialW=w)
@@ -65,6 +66,20 @@ class Discriminator(chainer.Chain):
             self.bn2_0 = L.BatchNormalization(256, use_gamma=False)
             self.bn2_1 = L.BatchNormalization(512, use_gamma=False)
             self.bn3_0 = L.BatchNormalization(512, use_gamma=False)
+
+    def cache_discriminator_weights(self):
+        self.cached_weights = {}
+        for name, param in self.namedparams():
+            with cuda.get_device(param.data):
+                xp = cuda.get_array_module(param.data)
+                self.cached_weights[name] = xp.copy(param.data)
+
+    def restore_discriminator_weights(self):
+        for name, param in self.namedparams():
+            with cuda.get_device(param.data):
+                if name not in self.cached_weights:
+                    raise Exception()
+                param.data = self.cached_weights[name]
 
     def __call__(self, x):
         h = add_noise(x)
@@ -101,13 +116,12 @@ class Encoder(chainer.Chain):
             self.bn3_0 = L.BatchNormalization(512, use_gamma=False)
 
     def __call__(self, x):
-        h = add_noise(x)
-        h = F.leaky_relu(add_noise(self.c0_0(h)))
-        h = F.leaky_relu(add_noise(self.bn0_1(self.c0_1(h))))
-        h = F.leaky_relu(add_noise(self.bn1_0(self.c1_0(h))))
-        h = F.leaky_relu(add_noise(self.bn1_1(self.c1_1(h))))
-        h = F.leaky_relu(add_noise(self.bn2_0(self.c2_0(h))))
-        h = F.leaky_relu(add_noise(self.bn2_1(self.c2_1(h))))
-        h = F.leaky_relu(add_noise(self.bn3_0(self.c3_0(h))))
+        h = F.leaky_relu(self.c0_0(x))
+        h = F.leaky_relu(self.bn0_1(self.c0_1(h)))
+        h = F.leaky_relu(self.bn1_0(self.c1_0(h)))
+        h = F.leaky_relu(self.bn1_1(self.c1_1(h)))
+        h = F.leaky_relu(self.bn2_0(self.c2_0(h)))
+        h = F.leaky_relu(self.bn2_1(self.c2_1(h)))
+        h = F.leaky_relu(self.bn3_0(self.c3_0(h)))
         h = self.l4(h)
         return h

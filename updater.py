@@ -7,6 +7,7 @@ class DCGANUpdater(chainer.training.StandardUpdater):
 
     def __init__(self, *args, **kwargs):
         self.gen, self.dis = kwargs.pop('models')
+        self.k = 0
         super(DCGANUpdater, self).__init__(*args, **kwargs)
 
     def loss_dis(self, dis, y_fake, y_real):
@@ -42,7 +43,13 @@ class DCGANUpdater(chainer.training.StandardUpdater):
         y_fake = dis(x_fake)
 
         dis_optimizer.update(self.loss_dis, dis, y_fake, y_real)
-        gen_optimizer.update(self.loss_gen, gen, y_fake)
+        if self.k == 0:
+            dis.cache_discriminator_weights()
+        if self.k == dis.unrolling_steps:
+            gen_optimizer.update(self.loss_gen, gen, y_fake)
+            dis.restore_discriminator_weights()
+            self.k = -1
+        self.k += 1
 
 
 class EncUpdater(chainer.training.StandardUpdater):
